@@ -1,10 +1,13 @@
 import discord
 from discord.ext import commands
+from discord.ext import tasks
 from wakeonlan import send_magic_packet
 import subprocess
 import socket
 import asyncio
 from mcrcon import MCRcon
+import time
+
 
 BOT_TOKEN = "MTQ0NjU0Nzk5NjQ0NjY5MTM5OA.Grqu3h.KAcOFPdiTsw8QpxnBqiPSWJbYBL7mLkpv6llgw"
 DEBIAN_MAC = "78:24:af:8c:b9:4a"
@@ -12,7 +15,7 @@ DEBIAN_IP = "192.168.0.32"        # IP of the Debian PC
 MC_SERVER_IP = "192.168.0.32"     # IP of the Minecraft server (same machine in this case)
 MC_RCON_PORT = 25575
 MC_RCON_TIMEOUT = 2  # seconds
-RCON_PASSWORD = "YOUR_RCON_PASSWORD"
+RCON_PASSWORD = "HarryKerans1!"
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -66,6 +69,22 @@ async def hello(ctx):
     await ctx.send("hello")
 
 @bot.command()
+async def commands(ctx):
+    """Show all available commands and what they do."""
+    help_text = """
+**Available Commands**
+
+**!wake** — Sends a Wake-on-LAN packet to the Debian server. Waits for the PC and Minecraft server to be online and notifies you.
+
+**!status** — Checks whether the Debian server and the Minecraft server are online.
+
+**!players** — Shows how many players are online on the Minecraft server and lists their usernames.
+
+**!hello** — Simple test command that responds with 'hello'.
+"""
+    await ctx.send(help_text)
+
+@bot.command()
 async def players(ctx):
     """Check how many players are online and who they are."""
     pc_online = is_online(DEBIAN_IP)
@@ -88,6 +107,7 @@ async def players(ctx):
 @bot.command()
 async def wake(ctx):
     """Wake the Debian server and notify when PC + Minecraft are online."""
+    start_time = time.time()
     if is_online(DEBIAN_IP):
         await ctx.send("🟢 The server PC is already online!")
 
@@ -113,7 +133,9 @@ async def wake(ctx):
     # Poll for Minecraft server -> up
     for i in range(90):  # ~90 seconds max
         if is_minecraft_online(MC_SERVER_IP, MC_RCON_PORT):
-            await ctx.send("🎉 Minecraft server is live and ready to join!")
+            end_time = time.time()  # <-- mark when server is fully ready
+            elapsed = end_time - start_time
+            await ctx.send(f"🎉 Minecraft server is live! Startup time: {elapsed:.1f} seconds")
             return
         await asyncio.sleep(2)
 
@@ -134,4 +156,36 @@ async def status(ctx):
 
     await ctx.send(f"**PC Status:** {pc_status}\n**Minecraft Server:** {mc_status}")
 
+CHECK_INTERVAL=300
+INACTIVITY_THRESHOLD=30*60
+
+async def auto_shutdown_task():
+    idle_time = 0
+    await bot.wait_until_ready()  # wait for bot to be ready
+    channel = bot.get_channel(1399042535011123223)
+
+    while not bot.is_closed():
+        if is_online(DEBIAN_IP) and is_minecraft_online(MC_SERVER_IP, MC_RCON_PORT):
+            count, _ = get_minecraft_players(MC_SERVER_IP, MC_RCON_PORT, RCON_PASSWORD)
+            if count == 0:
+                idle_time += CHECK_INTERVAL
+            else:
+                idle_time = 0
+        else:
+            idle_time = 0
+
+        if idle_time >= INACTIVITY_THRESHOLD:
+            if channel:
+                await channel.send("⚠️ Minecraft server has been idle. Shutting down...")
+            subprocess.run(["ssh", f"harrykerans@{DEBIAN_IP}", "sudo shutdown now"])
+            idle_time = 0
+
+        await asyncio.sleep(CHECK_INTERVAL)
+
+@bot.event
+async def on_ready():
+    print(f"Logged in as {bot.user}")
+    bot.loop.create_task(auto_shutdown_task())
+
+# Run the bot normally
 bot.run(BOT_TOKEN)
