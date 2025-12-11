@@ -7,15 +7,16 @@ import socket
 import asyncio
 from mcrcon import MCRcon
 import time
+import os
 
-
-BOT_TOKEN = "MTQ0NjU0Nzk5NjQ0NjY5MTM5OA.Grqu3h.KAcOFPdiTsw8QpxnBqiPSWJbYBL7mLkpv6llgw"
-DEBIAN_MAC = "78:24:af:8c:b9:4a"
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+DEBIAN_MAC = os.environ.get("DEBIAN_MAC")
 DEBIAN_IP = "192.168.0.32"        # IP of the Debian PC
 MC_SERVER_IP = "192.168.0.32"     # IP of the Minecraft server (same machine in this case)
 MC_RCON_PORT = 25575
 MC_RCON_TIMEOUT = 2  # seconds
-RCON_PASSWORD = "HarryKerans1!"
+RCON_PASSWORD = os.environ.get("RCON_PASSWORD")
+CHANNEL_ID = os.environ.get("CHANNEL_ID")
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -162,7 +163,7 @@ INACTIVITY_THRESHOLD=30*60
 async def auto_shutdown_task():
     idle_time = 0
     await bot.wait_until_ready()  # wait for bot to be ready
-    channel = bot.get_channel(1399042535011123223)
+    channel = bot.get_channel(CHANNEL_ID)
 
     while not bot.is_closed():
         if is_online(DEBIAN_IP) and is_minecraft_online(MC_SERVER_IP, MC_RCON_PORT):
@@ -173,6 +174,7 @@ async def auto_shutdown_task():
                 idle_time = 0
         else:
             idle_time = 0
+
 
         if idle_time >= INACTIVITY_THRESHOLD:
             if channel:
