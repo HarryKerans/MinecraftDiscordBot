@@ -1,0 +1,137 @@
+import discord
+from discord.ext import commands
+from wakeonlan import send_magic_packet
+import subprocess
+import socket
+import asyncio
+from mcrcon import MCRcon
+
+BOT_TOKEN = "MTQ0NjU0Nzk5NjQ0NjY5MTM5OA.Grqu3h.KAcOFPdiTsw8QpxnBqiPSWJbYBL7mLkpv6llgw"
+DEBIAN_MAC = "78:24:af:8c:b9:4a"
+DEBIAN_IP = "192.168.0.32"        # IP of the Debian PC
+MC_SERVER_IP = "192.168.0.32"     # IP of the Minecraft server (same machine in this case)
+MC_RCON_PORT = 25575
+MC_RCON_TIMEOUT = 2  # seconds
+RCON_PASSWORD = "YOUR_RCON_PASSWORD"
+
+intents = discord.Intents.default()
+intents.message_content = True
+
+bot = commands.Bot(command_prefix='!', intents=intents)
+
+def get_minecraft_players(host, port, password):
+    """Returns (count, [player names])"""
+    try:
+        with MCRcon(host, password, port=port) as mcr:
+            resp = mcr.command("list")  # returns string like "There are 1/20 players online: Steve"
+            # Parse count and player names
+            if "There are" in resp:
+                parts = resp.split(":")
+                if len(parts) == 2:
+                    player_str = parts[1].strip()
+                    players = [p.strip() for p in player_str.split(",")] if player_str else []
+                    count = len(players)
+                    return count, players
+                else:
+                    return 0, []
+            else:
+                return 0, []
+    except Exception as e:
+        print("RCON error:", e)
+        return 0, []
+
+
+def is_online(ip):
+    """Check if the Debian PC is online via ping."""
+    try:
+        output = subprocess.run(
+            ["ping", "-c", "1", "-W", "1", ip],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        return output.returncode == 0
+    except:
+        return False
+
+def is_minecraft_online(host, port, timeout=2):
+    """Check if the Minecraft server is responding on the RCON port."""
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except (ConnectionRefusedError, socket.timeout, OSError):
+        return False
+
+@bot.command()
+async def hello(ctx):
+    await ctx.send("hello")
+
+@bot.command()
+async def players(ctx):
+    """Check how many players are online and who they are."""
+    pc_online = is_online(DEBIAN_IP)
+    if not pc_online:
+        await ctx.send("🔴 The server PC is offline!")
+        return
+
+    mc_online = is_minecraft_online(MC_SERVER_IP, MC_RCON_PORT)
+    if not mc_online:
+        await ctx.send("⚠️ Minecraft server is not running.")
+        return
+
+    count, player_list = get_minecraft_players(MC_SERVER_IP, MC_RCON_PORT, RCON_PASSWORD)
+    if count == 0:
+        await ctx.send("🟢 Minecraft server is online, but no players are currently connected.")
+    else:
+        players_str = ", ".join(player_list)
+        await ctx.send(f"🟢 Minecraft server online — {count} player(s) connected: {players_str}")
+
+@bot.command()
+async def wake(ctx):
+    """Wake the Debian server and notify when PC + Minecraft are online."""
+    if is_online(DEBIAN_IP):
+        await ctx.send("🟢 The server PC is already online!")
+
+        if is_minecraft_online(MC_SERVER_IP, MC_RCON_PORT):
+            await ctx.send("🎮 Minecraft server is already running as well!")
+        else:
+            await ctx.send("⏳ PC is online but Minecraft server isn't responding yet.")
+        return
+
+    send_magic_packet(DEBIAN_MAC)
+    await ctx.send("🔌 Sent WOL packet! Waiting for server to start…")
+
+    # Poll for PC -> up
+    for i in range(60):  # ~60 seconds max
+        if is_online(DEBIAN_IP):
+            await ctx.send("🟢 The server PC is now online! Waiting for Minecraft…")
+            break
+        await asyncio.sleep(1)
+    else:
+        await ctx.send("❌ The server PC didn’t come online in time.")
+        return
+
+    # Poll for Minecraft server -> up
+    for i in range(90):  # ~90 seconds max
+        if is_minecraft_online(MC_SERVER_IP, MC_RCON_PORT):
+            await ctx.send("🎉 Minecraft server is live and ready to join!")
+            return
+        await asyncio.sleep(2)
+
+    await ctx.send("⚠️ PC is online, but Minecraft server didn't start.")
+
+@bot.command()
+async def status(ctx):
+    """Check Debian PC and Minecraft server status."""
+    pc_online = is_online(DEBIAN_IP)
+
+    if pc_online:
+        mc_online = is_minecraft_online(MC_SERVER_IP, MC_RCON_PORT)
+    else:
+        mc_online = False
+
+    pc_status = "🟢 Online" if pc_online else "🔴 Offline"
+    mc_status = "🟢 Running" if mc_online else "🔴 Not running"
+
+    await ctx.send(f"**PC Status:** {pc_status}\n**Minecraft Server:** {mc_status}")
+
+bot.run(BOT_TOKEN)
