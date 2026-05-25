@@ -16,6 +16,9 @@ with open("/data/options.json") as f:
 
 BOT_TOKEN = options.get("BOT_TOKEN")
 DEBIAN_MAC = options.get("DEBIAN_MAC")
+
+print(f"BOT_TOKEN loaded: {'YES (length=' + str(len(BOT_TOKEN)) + ')' if BOT_TOKEN else 'NO - token is empty!'}")
+
 DEBIAN_IP = "192.168.1.30"        # IP of the Debian PC
 MC_SERVER_IP = "192.168.1.30"     # IP of the Minecraft server (same machine in this case)
 MC_RCON_PORT = 25575
