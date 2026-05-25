@@ -1,5 +1,5 @@
 name: Minecraft Discord Bot
-version: "0.1.5"
+version: "0.1.6"
 slug: minecraft_discord_bot
 description: "A Discord bot to manage your Minecraft server"
 arch:

@@ -1,7 +1,8 @@
 FROM python:3.13-alpine
 
-# Install uv
+# Install uv and bash
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+RUN apk add --no-cache bash
 
 WORKDIR /app
 
