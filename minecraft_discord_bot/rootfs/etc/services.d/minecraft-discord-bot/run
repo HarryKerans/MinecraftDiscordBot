@@ -1,0 +1,7 @@
+#!/usr/bin/with-contenv bashio
+
+bashio::log.info "Starting Minecraft Discord Bot..."
+
+cd /app
+
+exec uv run python app/serverbot.py

@@ -8,13 +8,10 @@ WORKDIR /app
 # Copy project files
 COPY pyproject.toml uv.lock ./
 COPY app/ ./app/
-COPY run.sh ./
-
-# Make run.sh executable
-RUN chmod +x run.sh
+COPY rootfs/ /
 
 # Install dependencies using uv
 RUN uv sync --frozen --no-dev
 
-# Run the bot
-CMD ["./run.sh"]
+# Run the bot via s6-overlay
+CMD ["/init"]
