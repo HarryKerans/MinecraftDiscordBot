@@ -12,7 +12,7 @@ options:
   RCON_PASSWORD: ""
   CHANNEL_ID: ""
 schema:
-  BOT_TOKEN: str
-  DEBIAN_MAC: str
-  RCON_PASSWORD: str
-  CHANNEL_ID: str
+  BOT_TOKEN: password
+  DEBIAN_MAC: password
+  RCON_PASSWORD: password
+  CHANNEL_ID: password
