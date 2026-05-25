@@ -1,1 +1,0 @@
-# Minecraft Server Discord Bot
