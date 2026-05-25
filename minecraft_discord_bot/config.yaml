@@ -2,6 +2,8 @@ name: Minecraft Discord Bot
 version: "0.1.1"
 slug: minecraft_discord_bot
 description: "A Discord bot to manage your Minecraft server"
+arch:
+  - aarch64
 startup: services
 boot: auto
 options:
