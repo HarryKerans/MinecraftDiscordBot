@@ -2,6 +2,7 @@
 name = "minecraft-discord-bot"
 version = "1.0.0"
 description = "A Discord bot to manage your Minecraft server"
+requires-python = ">=3.13"
 authors = [
 	{ name="Your Name", email="your@email.com" }
 ]

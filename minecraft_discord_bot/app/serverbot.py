@@ -8,15 +8,20 @@ import asyncio
 from mcrcon import MCRcon
 import time
 import os
+import json
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-DEBIAN_MAC = os.environ.get("DEBIAN_MAC")
+# Load config from Home Assistant options
+with open("/data/options.json") as f:
+    options = json.load(f)
+
+BOT_TOKEN = options.get("BOT_TOKEN")
+DEBIAN_MAC = options.get("DEBIAN_MAC")
 DEBIAN_IP = "192.168.1.30"        # IP of the Debian PC
 MC_SERVER_IP = "192.168.1.30"     # IP of the Minecraft server (same machine in this case)
 MC_RCON_PORT = 25575
 MC_RCON_TIMEOUT = 2  # seconds
-RCON_PASSWORD = os.environ.get("RCON_PASSWORD")
-CHANNEL_ID = os.environ.get("CHANNEL_ID")
+RCON_PASSWORD = options.get("RCON_PASSWORD")
+CHANNEL_ID = options.get("CHANNEL_ID")
 
 intents = discord.Intents.default()
 intents.message_content = True
