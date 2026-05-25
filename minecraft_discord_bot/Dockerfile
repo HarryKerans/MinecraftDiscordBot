@@ -13,5 +13,3 @@ COPY rootfs/ /
 # Install dependencies using uv
 RUN uv sync --frozen --no-dev
 
-# Run the bot via s6-overlay
-CMD ["/init"]
