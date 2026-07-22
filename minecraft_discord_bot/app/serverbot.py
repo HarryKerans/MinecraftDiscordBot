@@ -126,7 +126,7 @@ async def wake(ctx):
             await ctx.send("⏳ PC is online but Minecraft server isn't responding yet.")
         return
 
-    send_magic_packet(DEBIAN_MAC)
+    send_magic_packet(DEBIAN_MAC, ip_address='192.168.1.255')
     await ctx.send("🔌 Sent WOL packet! Waiting for server to start…")
 
     # Poll for PC -> up
@@ -168,34 +168,41 @@ async def status(ctx):
 CHECK_INTERVAL=300
 INACTIVITY_THRESHOLD=30*60
 
+idle_time = 0
+
+@tasks.loop(seconds=CHECK_INTERVAL)
 async def auto_shutdown_task():
-    idle_time = 0
-    await bot.wait_until_ready()  # wait for bot to be ready
+    global idle_time
     channel = bot.get_channel(CHANNEL_ID)
 
-    while not bot.is_closed():
-        if is_online(DEBIAN_IP) and is_minecraft_online(MC_SERVER_IP, MC_RCON_PORT):
-            count, _ = get_minecraft_players(MC_SERVER_IP, MC_RCON_PORT, RCON_PASSWORD)
-            if count == 0:
-                idle_time += CHECK_INTERVAL
-            else:
-                idle_time = 0
+    if is_online(DEBIAN_IP) and is_minecraft_online(MC_SERVER_IP, MC_RCON_PORT):
+        count, _ = get_minecraft_players(MC_SERVER_IP, MC_RCON_PORT, RCON_PASSWORD)
+        if count == 0:
+            idle_time += CHECK_INTERVAL
         else:
             idle_time = 0
+    else:
+        idle_time = 0
 
+    if idle_time >= INACTIVITY_THRESHOLD:
+        if channel:
+            await channel.send("⚠️ Minecraft server has been idle. Shutting down...")
+        subprocess.run([
+            "ssh", "-i", "/ssl/mc_bot_key",
+            "-o", "StrictHostKeyChecking=no",
+            f"harrykerans@{DEBIAN_IP}", "sudo shutdown now"
+        ])
+        idle_time = 0
 
-        if idle_time >= INACTIVITY_THRESHOLD:
-            if channel:
-                await channel.send("⚠️ Minecraft server has been idle. Shutting down...")
-            subprocess.run(["ssh", f"harrykerans@{DEBIAN_IP}", "sudo shutdown now"])
-            idle_time = 0
-
-        await asyncio.sleep(CHECK_INTERVAL)
+@auto_shutdown_task.before_loop
+async def before_auto_shutdown():
+    await bot.wait_until_ready()
 
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
-    bot.loop.create_task(auto_shutdown_task())
+    if not auto_shutdown_task.is_running():
+        auto_shutdown_task.start()
 
 # Run the bot normally
 bot.run(BOT_TOKEN)

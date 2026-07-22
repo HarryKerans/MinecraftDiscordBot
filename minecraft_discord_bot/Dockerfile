@@ -2,7 +2,7 @@ FROM python:3.13-alpine
 
 # Install uv and bash
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
-RUN apk add --no-cache bash
+RUN apk add --no-cache bash openssh-client
 
 WORKDIR /app
 
