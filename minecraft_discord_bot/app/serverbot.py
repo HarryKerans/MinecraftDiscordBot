@@ -48,6 +48,7 @@ idle_time = 0
 # SSH control
 # --------------------------------------------------
 
+
 def run_control(action):
     """Run an authorised Minecraft control command over SSH."""
 
@@ -60,7 +61,7 @@ def run_control(action):
         "-o", "IdentitiesOnly=yes",
         "-o", "BatchMode=yes",
         "-o", "ConnectTimeout=5",
-        "-o", "StrictHostKeyChecking=accept-new",
+        "-o", "StrictHostKeyChecking=yes",
         "-o", f"UserKnownHostsFile={SSH_KNOWN_HOSTS}",
         f"{SSH_USER}@{DOCKER_IP}",
         f"sudo -n {CONTROL_SCRIPT} {action}",
@@ -74,7 +75,15 @@ def run_control(action):
         check=True,
     )
 
-    return result.stdout.strip()
+    output = result.stdout.strip()
+
+    if action == "status":
+        # docker compose ps outputs a table.
+        # An empty table means the container isn't running.
+        return "running" if "minecraft" in output and "Up " in output else "stopped"
+
+    return output
+
 
 
 # --------------------------------------------------
