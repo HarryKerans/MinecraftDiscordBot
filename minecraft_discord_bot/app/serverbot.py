@@ -6,10 +6,11 @@ import re
 import subprocess
 import time
 import traceback
+import socket
+import struct
 
 import discord
 from discord.ext import commands, tasks
-from mcrcon import MCRcon
 
 
 # --------------------------------------------------
@@ -92,45 +93,80 @@ def run_control(action):
 # --------------------------------------------------
 
 def get_minecraft_players():
-    """
-    Returns (count, player_names).
+    """Connect to Minecraft using the RCON protocol and retrieve players."""
 
-    Returns None if RCON fails, so a connection failure
-    can never be mistaken for an empty server.
-    """
+    def send_packet(sock, request_id, packet_type, payload):
+        body = (
+            struct.pack("<ii", request_id, packet_type)
+            + payload.encode("utf-8")
+            + b"\x00\x00"
+        )
+
+        sock.sendall(struct.pack("<i", len(body)) + body)
+
+    def receive_packet(sock):
+        length_data = sock.recv(4)
+        if len(length_data) != 4:
+            raise ConnectionError("Incomplete RCON packet length")
+
+        length = struct.unpack("<i", length_data)[0]
+        data = b""
+
+        while len(data) < length:
+            chunk = sock.recv(length - len(data))
+            if not chunk:
+                raise ConnectionError("RCON connection closed")
+            data += chunk
+
+        request_id, packet_type = struct.unpack("<ii", data[:8])
+        payload = data[8:-2].decode("utf-8", errors="replace")
+
+        return request_id, packet_type, payload
 
     try:
-        with MCRcon(
-            MC_SERVER_IP,
-            RCON_PASSWORD,
-            port=MC_RCON_PORT
-        ) as mcr:
+        with socket.create_connection(
+            (MC_SERVER_IP, MC_RCON_PORT), timeout=5
+        ) as sock:
 
-            response = mcr.command("list")
+            sock.settimeout(5)
 
-        count_match = re.search(r"There are\s+(\d+)", response)
+            # Authenticate
+            send_packet(sock, 1, 3, RCON_PASSWORD)
+            request_id, packet_type, _ = receive_packet(sock)
 
-        if not count_match:
-            print("Unexpected RCON list response:", response)
-            return None
+            if request_id == -1:
+                raise PermissionError("RCON authentication failed")
 
-        count = int(count_match.group(1))
+            if request_id != 1 or packet_type != 2:
+                raise ConnectionError("Unexpected RCON authentication response")
 
-        # Minecraft normally puts player names after a colon.
-        if ":" in response:
-            player_string = response.split(":", 1)[1].strip()
-            players = (
-                [name.strip() for name in player_string.split(",")]
-                if player_string else []
-            )
-        else:
+            # Request player list
+            send_packet(sock, 2, 2, "list")
+            request_id, packet_type, response = receive_packet(sock)
+
+            if request_id != 2:
+                raise ConnectionError("Unexpected RCON response ID")
+
+            match = re.search(r"There are\s+(\d+)", response)
+
+            if not match:
+                raise ValueError(f"Could not parse player count: {response}")
+
+            count = int(match.group(1))
+
             players = []
+            if ":" in response:
+                players_text = response.split(":", 1)[1].strip()
+                if players_text:
+                    players = [p.strip() for p in players_text.split(",")]
 
-        return count, players
+            return count, players
 
     except Exception as e:
-        print(f"RCON error: {type(e).__name__}: {e}", flush=True)
-        traceback.print_exc()
+        print(
+            f"RCON error: {type(e).__name__}: {e}",
+            flush=True
+        )
         return None
 
 
