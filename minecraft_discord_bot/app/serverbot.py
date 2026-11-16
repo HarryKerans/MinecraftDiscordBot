@@ -5,6 +5,7 @@ import os
 import re
 import subprocess
 import time
+import traceback
 
 import discord
 from discord.ext import commands, tasks
@@ -128,7 +129,8 @@ def get_minecraft_players():
         return count, players
 
     except Exception as e:
-        print("RCON error:", e)
+        print(f"RCON error: {type(e).__name__}: {e}", flush=True)
+        traceback.print_exc()
         return None
 
 
